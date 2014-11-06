@@ -21,7 +21,7 @@ class Helper
         if (isset($array[$key])) return $array[$key];
         foreach (explode('.', $key) as $segment) {
             if ( ! is_array($array) or ! array_key_exists($segment, $array)) {
-                return value($default);
+                return static::value($default);
             }
             $array = $array[$segment];
         }
@@ -41,5 +41,10 @@ class Helper
         }
         $array[array_shift($keys)] = $value;
         return $array;
+    }
+
+    public static function value($value)
+    {
+        return $value instanceof Closure ? $value() : $value;
     }
 }

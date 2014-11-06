@@ -20,16 +20,11 @@ $ composer require allmarkedup/conph
 
 class MyConfig extends Amu\Conph\Config
 {
-    public function getNames($value)
+    public function convertPaths($value)
     {
-        return array_map(function($name){
-            return strtoupper($name);
+        return array_map(function($item){
+            return '/my/base/path' . $item;
         }, $value);
-    }
-
-    public function setPathsTemplates($value)
-    {
-        $this->setConfigItem('paths.templates', '/my/base/path'. $value);
     }
 }
 
@@ -51,8 +46,7 @@ $config = new MyConfig([
 $debug = $config->get('settings.debug');
 $config->set('names.batman', 'Clive');
 
-// Setter and getter functions
-$names = $config->get('names'); // => ["batman" => 'FRED', "superman" => 'DAVE']
-$config->set('paths.templates', '/tpl'); // paths.templates => '/my/base/path/tpl'
+// Custom converter functions
+$config->get('paths.templates'); // => /my/base/path/the_template_path
 
 ```

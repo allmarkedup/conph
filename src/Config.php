@@ -1,65 +1,115 @@
 <?php namespace Amu\Conph;
 
-use Amu\Conph\Helper;
+use Amu\Dayglo\Loader;
+use Amu\Dayglo\Parser;
+use Amu\Dayglo\ParserCollection;
 
 class Config
 {
+    protected $raw = [];
+
     protected $config = [];
 
-    public function __construct($config)
+    protected $loader;
+
+    public function __construct(array $config = [], Loader $loader = null)
     {
-        $this->config = $config;
+        $this->raw = $config;
+        $this->loader = $loader;
+        $this->applyConverters();
+    }
+
+    public static function createFromFile($path, Loader $loader = null)
+    {
+        if ( ! file_exists($path) ) {
+            throw new \InvalidArgumentException('The file ' . $path . ' was not found');    
+        }
+        $self = new static([], $loader);
+        $self->mergeWithFile($path);
+        return $self;
+    }
+
+    public static function createFromArray(array $array = [], Loader $loader = null)
+    {
+        return new static($array, $loader);
     }
 
     public function merge($config = [])
     {
-        $this->config = Helper::merge($this->config, $config);
+        $this->raw = Helper::merge($this->raw, $config);
+        $this->applyConverters();
     }
 
-    public function get($path)
+    public function mergeWithFile($path)
     {
-        return $this->applyGetter($path);
+        if ( ! file_exists($path) ) {
+            throw new \InvalidArgumentException('The file ' . $path . ' was not found');    
+        }
+        $loader = $this->getLoader();
+        $this->merge((array) $loader->fetch($path)->getData());
+    }
+
+    public function get($path = null, $default = null)
+    {
+        if (is_null($path)) {
+            return $this->config;
+        }
+        return Helper::get($this->config, $path, $default);
+    }
+
+    public function getRaw($path = null, $default = null)
+    {
+        if (is_null($path)) {
+            return $this->raw;
+        }
+        return Helper::get($this->raw, $path, $default);
     }
 
     public function set($path, $value)
     {
-        $this->applySetter($path, $value);
+        Helper::set($this->raw, $path, $value);
+        $this->applyConverters();
     }
 
-    protected function getConfigItem($path)
+    protected function applyConverters()
     {
-        return Helper::get($this->config, $path);
-    }
-
-    protected function setConfigItem($path, $value)
-    {
-        Helper::set($this->config, $path, $value);
-    }
-
-    protected function applyGetter($path)
-    {
-        $value = $this->getConfigItem($path);
-        $getterName = $this->convertPathToFunctionName('get', $path);
-        if ( method_exists($this, $getterName) ) {
-            return $this->$getterName($value);
+        $methods = get_class_methods($this);
+        $this->config = $this->raw;
+        foreach ($methods as $method) {
+            if (strpos($method, 'convert') === 0) {
+                $path = $this->getPathFromConverterName($method);
+                $rawValue = Helper::get($this->raw, $path);
+                $convertedValue = $this->$method($rawValue);
+                Helper::set($this->config, $path, $convertedValue);
+            }
         }
-        return $value;
     }
 
-    protected function applySetter($path, $value)
+    protected function getPathFromConverterName($methodName)
     {
-        $setterName = $this->convertPathToFunctionName('set', $path);
-        if ( method_exists($this, $setterName) ) {
-            return $this->$setterName($value);
+        $pathName = substr($methodName, 7);
+        $parts = explode('_', $pathName);
+        $parts = array_map(function($part){
+            preg_match_all('/((?:^|[A-Z])[a-z]+)/', $part, $matches);
+            $matches = $matches[0];
+            return strtolower(implode('.', $matches));
+        }, $parts);
+        return implode('_', $parts);
+    }
+
+    protected function getLoader()
+    {
+        if ( is_null($this->loader) ) {
+            $parsers = new ParserCollection([
+                new Parser\JsonParser(),
+                new Parser\YamlParser(),
+                new Parser\PhpParser(),
+                new Parser\CsvParser(),
+                new Parser\TomlParser(),
+            ]);
+            $this->loader = new Loader($parsers);    
         }
-        $this->setConfigItem($path, $value);
-    }
-
-    protected function convertPathToFunctionName($prefix, $path)
-    {
-        $path = str_replace(' ', '_', ucwords(str_replace('_', ' ', $path)));
-        $path = str_replace(' ', '', ucwords(str_replace('.', ' ', $path)));
-        return $prefix . $path;
+        return $this->loader;
     }
 
 }
