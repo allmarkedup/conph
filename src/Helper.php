@@ -7,7 +7,7 @@ class Helper
         $merged = $array1;
         foreach ( $array2 as $key => &$value ) {
             if ( is_array ( $value ) && isset ( $merged [$key] ) && is_array ( $merged [$key] ) ) {
-                $merged [$key] = merge( $merged [$key], $value );
+                $merged [$key] = static::merge( $merged [$key], $value );
             } else {
                 $merged [$key] = $value;
             }
