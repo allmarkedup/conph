@@ -1,6 +1,7 @@
 <?php namespace Amu\Conph;
 
 use Amu\Dayglo\Loader;
+use Amu\Dayglo\Writer;
 use Amu\Dayglo\Parser;
 use Amu\Dayglo\ParserCollection;
 
@@ -12,10 +13,13 @@ class Config
 
     protected $loader;
 
-    public function __construct(array $config = [], Loader $loader = null)
+    protected $writer;
+
+    public function __construct(array $config = [], Loader $loader = null, Writer $writer = null)
     {
         $this->raw = $config;
         $this->loader = $loader;
+        $this->writer = $writer;
         $this->applyConverters();
     }
 
@@ -71,6 +75,14 @@ class Config
         $this->applyConverters();
     }
 
+    public function write($path, $raw = true)
+    {
+        $data = $raw ? $this->raw : $this->config;
+        $writer = $this->getWriter();
+        $writer->setData($data);
+        return $writer->write($path);
+    }
+
     protected function applyConverters()
     {
         $methods = get_class_methods($this);
@@ -110,6 +122,21 @@ class Config
             $this->loader = new Loader($parsers);    
         }
         return $this->loader;
+    }
+
+    protected function getWriter()
+    {
+        if ( is_null($this->writer) ) {
+            $parsers = new ParserCollection([
+                new Parser\JsonParser(),
+                new Parser\YamlParser(),
+                new Parser\PhpParser(),
+                new Parser\CsvParser(),
+                new Parser\TomlParser(),
+            ]);
+            $this->writer = new Writer($parsers);    
+        }
+        return $this->writer;
     }
 
 }
